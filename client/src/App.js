@@ -5,9 +5,7 @@ import NotificationService from './notifications/notificationService';
 import Notifications from './components/Notifications';
 import UnreadLogo from './components/UnreadLogo';
 
-const serverURL =
-  process.env.REACT_APP_SERVER_URL ||
-  `${window.location.protocol}//${window.location.hostname}:4000`;
+const serverURL = "http://172.20.10.3:4000";
 
 function App() {
   // Create a single socket instance (avoids duplicate connections in StrictMode)

@@ -2,14 +2,25 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
+const dotenv = require('dotenv');
 
 const app = express();
 app.use(cors());
 
+dotenv.config({ path: './.env' });
+
 // Create HTTP server + Socket.IO
-const server = http.createServer(app);
+const port = process.env.PORT;
+const server = app.listen(port, '0.0.0.0', () => {
+  console.log('Listening on', port);
+});
+
 const io = new Server(server, {
-  cors: { origin: "*" },
+  cors: {
+    origin: ['http://localhost:3000'], // dev clients on each PC
+    methods: ['GET','POST'],
+    credentials: true
+  }
 });
 
 // In-memory state
@@ -296,5 +307,5 @@ io.on("connection", (socket) => {
   });
 });
 
-const PORT = 4000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// const PORT = 4000;
+// server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

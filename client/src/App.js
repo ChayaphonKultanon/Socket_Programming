@@ -55,6 +55,19 @@ function App() {
 
     socketInstance.on("users:update", onUsersUpdate);
     socketInstance.on("groups:update", onGroupsUpdate);
+    const onJoinRequest = (payload) => {
+      // payload: { groupName, requester }
+      setGroupRequestMsg(`Join request from ${payload.requester} for ${payload.groupName}`);
+    };
+    const onApproved = (payload) => {
+      setGroupRequestMsg(`Your request to join ${payload.groupName} was approved`);
+    };
+    const onRejected = (payload) => {
+      setGroupRequestMsg(`Your request to join ${payload.groupName} was rejected`);
+    };
+    socketInstance.on('groups:join:request', onJoinRequest);
+    socketInstance.on('groups:approved', onApproved);
+    socketInstance.on('groups:rejected', onRejected);
     socketInstance.on("dm:ready", onDmReady);
     socketInstance.on("dm:message", onDmMessage);
     socketInstance.on("group:message", onGroupMessage);
@@ -65,6 +78,9 @@ function App() {
       socketInstance.off("dm:ready", onDmReady);
       socketInstance.off("dm:message", onDmMessage);
       socketInstance.off("group:message", onGroupMessage);
+      socketInstance.off('groups:join:request', onJoinRequest);
+      socketInstance.off('groups:approved', onApproved);
+      socketInstance.off('groups:rejected', onRejected);
     };
   }, [socketInstance, active, you]);
 
@@ -92,11 +108,13 @@ function App() {
   };
 
   const [groupName, setGroupName] = useState("");
+  const [groupPrivate, setGroupPrivate] = useState(false);
+  const [groupRequestMsg, setGroupRequestMsg] = useState("");
   const createGroup = () => {
     setError("");
     const g = groupName.trim();
     if (!g) return setError("Group name is required");
-  socketInstance.emit("groups:create", g, (res) => {
+  socketInstance.emit("groups:create", { name: g, private: groupPrivate }, (res) => {
       if (!res?.ok) return setError(res?.error || "Create group failed");
       setGroupName("");
       setActive({ kind: "group", room: `group:${g}`, label: `Group: ${g}`, groupName: g });
@@ -105,9 +123,29 @@ function App() {
 
   const joinGroup = (gname) => {
     setError("");
-  socketInstance.emit("groups:join", gname, (res) => {
+    setGroupRequestMsg("");
+    const g = groups.find((x) => x.name === gname);
+    if (g && g.private) {
+      // send join request
+      socketInstance.emit("groups:requestJoin", gname, (res) => {
+        if (!res?.ok) return setError(res?.error || "Request failed");
+        setGroupRequestMsg("Request sent");
+      });
+      return;
+    }
+    socketInstance.emit("groups:join", gname, (res) => {
       if (!res?.ok) return setError(res?.error || "Join group failed");
       setActive({ kind: "group", room: `group:${gname}`, label: `Group: ${gname}`, groupName: gname });
+    });
+  };
+
+  const deleteGroup = (gname) => {
+    setError("");
+    if (!window.confirm(`Delete group "${gname}"? This will remove the group for everyone.`)) return;
+    socketInstance.emit("groups:delete", gname, (res) => {
+      if (!res?.ok) return setError(res?.error || "Delete group failed");
+      // If the deleted group was active, clear active
+      if (active?.groupName === gname) setActive(null);
     });
   };
 
@@ -182,20 +220,27 @@ function App() {
               placeholder="New group name"
               onKeyDown={(e) => e.key === "Enter" && createGroup()}
             />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 8 }}>
+              <input type="checkbox" checked={groupPrivate} onChange={(e) => setGroupPrivate(e.target.checked)} /> Private
+            </label>
             <button className="btn" onClick={createGroup}>Create</button>
           </div>
           <ul className="list">
             {groups.map((g) => (
               <li key={g.name} className="group-item">
-                <strong>{g.name}</strong>
+                <strong>{g.name}{g.private ? ' 🔒' : ''}</strong>
                 {isMember(g) ? (
-                  <button
-                    className="btn btn-small"
-                    onClick={() => setActive({ kind: "group", room: `group:${g.name}`, label: `Group: ${g.name}`, groupName: g.name })}
-                  >Open</button>
+                  <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                    <button
+                      className="btn btn-small"
+                      onClick={() => setActive({ kind: "group", room: `group:${g.name}`, label: `Group: ${g.name}`, groupName: g.name })}
+                    >Open</button>
+                    <button className="btn btn-small" onClick={() => deleteGroup(g.name)}>Delete</button>
+                  </div>
                 ) : (
-                  <button className="btn btn-small" onClick={() => joinGroup(g.name)}>Join</button>
+                  <button className="btn btn-small" onClick={() => joinGroup(g.name)}>{g.private ? 'Request to join' : 'Join'}</button>
                 )}
+                {g.pending && g.pending.length > 0 && <small style={{ marginLeft: 8, color: '#666' }}>{g.pending.length} pending</small>}
               </li>
             ))}
           </ul>
@@ -214,6 +259,32 @@ function App() {
               {(groups.find((g) => g.name === active.groupName)?.members || []).map((m) => (
                 <span key={m} className={`chip ${m === you ? 'me' : ''}`}>{m}</span>
               ))}
+              {(() => {
+                const ag = groups.find((g) => g.name === active.groupName);
+                if (ag && ag.owner === you && ag.pending && ag.pending.length) {
+                  return (
+                    <div style={{ marginLeft: 12 }}>
+                      <div style={{ fontSize: 12, color: '#333', marginTop: 6 }}>Pending requests:</div>
+                      {ag.pending.map((p) => (
+                        <div key={p} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
+                          <span className="chip">{p}</span>
+                          <button className="btn btn-small" onClick={() => {
+                            socketInstance.emit('groups:approve', { groupName: ag.name, username: p }, (res) => {
+                              if (!res?.ok) return setError(res?.error || 'Approve failed');
+                            });
+                          }}>Approve</button>
+                          <button className="btn btn-small" onClick={() => {
+                            socketInstance.emit('groups:reject', { groupName: ag.name, username: p }, (res) => {
+                              if (!res?.ok) return setError(res?.error || 'Reject failed');
+                            });
+                          }}>Reject</button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           )}
         </header>

@@ -1,7 +1,5 @@
-import { useEffect, useState } from "react";
-
-import { io } from "socket.io-client";
-
+const { io } = require("socket.io-client");
+const { useEffect, useState } = require("react");
 const socket = io("http://localhost:4000");
 
 function App() {

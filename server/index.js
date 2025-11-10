@@ -20,6 +20,10 @@ const socketByUser = new Map();
 // groupName -> { name, members: Set<username>, owner: username, private: boolean, pending: Set<username> }
 const groups = new Map();
 
+// Initialize world chat (after userBySocket is declared)
+const initWorldChat = require('./worldChat');
+const worldChat = initWorldChat(io, userBySocket);
+
 const listUsers = () => Array.from(socketByUser.keys()).sort();
 const listGroups = () =>
   Array.from(groups.values()).map((g) => ({

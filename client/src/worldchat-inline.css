@@ -1,0 +1,21 @@
+/* Additional styles for inline world chat message formatting */
+.messages-container .message-line {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.messages-container .message-name {
+  font-weight: 700;
+  color: var(--ink);
+}
+.messages-container .message-time {
+  font-size: 12px;
+  color: var(--muted);
+}
+.messages-container .message-text {
+  color: var(--ink);
+}
+.messages-container .sep {
+  color: var(--muted);
+}

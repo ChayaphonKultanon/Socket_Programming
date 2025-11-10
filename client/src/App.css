@@ -1,6 +1,9 @@
 /* Shampoo Pink Theme */
 :root {
   --bg: #fff7fa;              /* very light pink */
+  --unread-size: 20px;
+  --unread-offset-x: 8px; /* horizontal offset from name (positive moves badge left when using negative) */
+  --unread-offset-y: 50%; /* vertical center */
   --bg-strong: #ffeaf1;       /* panel subtle */
   --pink-50: #fff0f6;
   --pink-100: #ffe4ec;
@@ -223,3 +226,35 @@
   background: linear-gradient(180deg, var(--pink-300), var(--pink-500));
   border-radius: 10px;
 }
+
+/* Notification toasts (bottom-left) */
+.notification-container {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 9999;
+}
+
+.notification {
+  background: linear-gradient(180deg, var(--white), var(--pink-50));
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  min-width: 220px;
+  max-width: 360px;
+  cursor: pointer;
+}
+
+.notification-title { font-weight: 700; font-size: 13px; color: var(--ink); }
+.notification-body { font-size: 13px; color: var(--muted); margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Unread badge near names */
+.user-name-wrap { display: inline-flex; align-items: center; gap: 8px; }
+/* Place the unread badge beside the name (to the right) */
+.user-name-wrap .unread-badge { position: static; margin-left: 6px; }
+.group-name-wrap { display: inline-flex; align-items: center; gap: 8px; }
+.group-name-wrap .group-unread-badge { position: static; margin-left: 6px; }

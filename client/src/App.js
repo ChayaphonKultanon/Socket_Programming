@@ -212,18 +212,21 @@ function App() {
         </section>
         <section className="section">
           <h4>Groups</h4>
-          <div className="group-form">
+          <div className="group-form" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <input
               className="input"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               placeholder="New group name"
               onKeyDown={(e) => e.key === "Enter" && createGroup()}
+              style={{ width: '90%', maxWidth: 300 }}
             />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 8 }}>
-              <input type="checkbox" checked={groupPrivate} onChange={(e) => setGroupPrivate(e.target.checked)} /> Private
-            </label>
-            <button className="btn" onClick={createGroup}>Create</button>
+            <div style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="checkbox" checked={groupPrivate} onChange={(e) => setGroupPrivate(e.target.checked)} /> Private
+              </label>
+              <button className="btn" onClick={createGroup}>Create</button>
+            </div>
           </div>
           <ul className="list">
             {groups.map((g) => (

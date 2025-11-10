@@ -223,3 +223,28 @@
   background: linear-gradient(180deg, var(--pink-300), var(--pink-500));
   border-radius: 10px;
 }
+
+/* Toast / notification area (bottom-left) */
+.toast-container {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 9999;
+}
+
+.toast {
+  background: linear-gradient(180deg, var(--white), var(--pink-50));
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  min-width: 220px;
+  max-width: 360px;
+  cursor: pointer;
+}
+
+.toast-title { font-weight: 700; font-size: 13px; color: var(--ink); }
+.toast-body { font-size: 13px; color: var(--muted); margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { io } from "socket.io-client";
+import useSocket from "./hooks/useSocket";
 import "./App.css";
+import UnreadLogo from "./components/UnreadLogo";
 
 const serverURL =
   process.env.REACT_APP_SERVER_URL ||
   `${window.location.protocol}//${window.location.hostname}:4000`;
 
 function App() {
-  // Create a single socket instance (avoids duplicate connections in StrictMode)
-  const [socketInstance] = useState(() => io(serverURL));
+  // Create a single socket instance (via hook)
+  const socketInstance = useSocket(serverURL);
 
   // Auth / presence
   const [username, setUsername] = useState("");
@@ -22,9 +23,80 @@ function App() {
   const [messagesByRoom, setMessagesByRoom] = useState({});
   // Active chat selection
   const [active, setActive] = useState(null); // { kind: 'dm'|'group', room, label, groupName? }
+  // In-app toasts for new messages (bottom-right)
+  const [toasts, setToasts] = useState([]); // { id, title, body, room, type, timestamp }
+  // Track unread messages per room
+  const [unread, setUnread] = useState({}); // { roomId: count }
+  // Map DM partner username -> room id so we can show unread per-user
+  const [dmRooms, setDmRooms] = useState({}); // { username: roomId }
 
   // Register and subscriptions
   useEffect(() => {
+    // Helper: show browser notification for an incoming message and in-app toast
+    const removeToast = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
+
+    const pushToast = (msg) => {
+      try {
+        if (!msg || msg.from === you) return;
+        // If user is currently viewing the same room, skip toast entirely
+        if (active && active.room === msg.room) {
+          // debug: skipped toast because user is viewing the same room
+          return;
+        }
+      } catch (e) {
+        console.error('pushToast: unexpected error', e, msg);
+        return;
+      }
+      const id = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+      const title = msg.type === "group" ? `${msg.from} @ ${msg.groupName}` : `${msg.from} (DM)`;
+      // Use 'title' and 'body' so render code matches
+      const toast = { id, title, body: msg.text, room: msg.room, type: msg.type, timestamp: msg.timestamp };
+      setToasts((prev) => [toast, ...prev]);
+      // auto-dismiss after ~4.2s
+      setTimeout(() => removeToast(id), 4200);
+    };
+
+    const showNotification = (msg) => {
+      try {
+        // Don't notify for your own messages or if user is already viewing this room
+        if (!msg || msg.from === you) return;
+        if (active && active.room === msg.room) return;
+
+        // Show in-app toast
+        pushToast(msg);
+      } catch (e) {
+        console.error('showNotification: pushToast failed', e, msg);
+      }
+
+      try {
+        if (typeof Notification === "undefined") return;
+        if (Notification.permission !== "granted") return;
+
+        const title = msg.type === "group" ? `${msg.from} @ ${msg.groupName}` : `${msg.from} (DM)`;
+        const options = {
+          body: msg.text,
+          tag: msg.room,
+          timestamp: msg.timestamp,
+        };
+        const n = new Notification(title, options);
+        n.onclick = () => {
+          try {
+            window.focus();
+            if (msg.type === "group") {
+              setActive({ kind: "group", room: msg.room, label: `Group: ${msg.groupName}`, groupName: msg.groupName });
+            } else {
+              setActive({ kind: "dm", room: msg.room, label: `DM with ${msg.from}` });
+            }
+            n.close();
+          } catch (e) {
+            console.error('notification onclick handler failed', e, msg);
+          }
+        };
+      } catch (e) {
+        console.error('Failed to create/show browser Notification', e, msg);
+      }
+    };
+
     const onUsersUpdate = (list) => setUsers(list || []);
     const onGroupsUpdate = (list) => setGroups(list || []);
 
@@ -33,8 +105,12 @@ function App() {
       // Ensure messages state exists
       setMessagesByRoom((prev) => ({ ...prev, [payload.room]: prev[payload.room] || [] }));
       // If no active chat, auto-select this DM
+      // remember which room belongs to which partner username
+      const other = (payload.with || []).find((u) => u !== you) || payload.with?.[0];
+      if (other) {
+        setDmRooms((prev) => ({ ...prev, [other]: payload.room }));
+      }
       if (!active) {
-        const other = (payload.with || []).find((u) => u !== you) || payload.with?.[0];
         setActive({ kind: "dm", room: payload.room, label: `DM with ${other}` });
       }
     };
@@ -44,6 +120,14 @@ function App() {
         ...prev,
         [msg.room]: [...(prev[msg.room] || []), msg],
       }));
+      // Increment unread count if not viewing this chat
+      if ((!active || active.room !== msg.room) && msg.from !== you) {
+        setUnread(prev => ({
+          ...prev,
+          [msg.room]: (prev[msg.room] || 0) + 1
+        }));
+      }
+      showNotification(msg);
     };
 
     const onGroupMessage = (msg) => {
@@ -51,44 +135,66 @@ function App() {
         ...prev,
         [msg.room]: [...(prev[msg.room] || []), msg],
       }));
+      // Increment unread count if not viewing this chat
+      if ((!active || active.room !== msg.room) && msg.from !== you) {
+        setUnread(prev => ({
+          ...prev,
+          [msg.room]: (prev[msg.room] || 0) + 1
+        }));
+      }
+      showNotification(msg);
     };
+
+    if (!socketInstance) return;
 
     socketInstance.on("users:update", onUsersUpdate);
     socketInstance.on("groups:update", onGroupsUpdate);
-    const onJoinRequest = (payload) => {
-      // payload: { groupName, requester }
-      setGroupRequestMsg(`Join request from ${payload.requester} for ${payload.groupName}`);
-    };
-    const onApproved = (payload) => {
-      setGroupRequestMsg(`Your request to join ${payload.groupName} was approved`);
-    };
-    const onRejected = (payload) => {
-      setGroupRequestMsg(`Your request to join ${payload.groupName} was rejected`);
-    };
-    socketInstance.on('groups:join:request', onJoinRequest);
-    socketInstance.on('groups:approved', onApproved);
-    socketInstance.on('groups:rejected', onRejected);
     socketInstance.on("dm:ready", onDmReady);
     socketInstance.on("dm:message", onDmMessage);
     socketInstance.on("group:message", onGroupMessage);
 
     return () => {
+      if (!socketInstance) return;
       socketInstance.off("users:update", onUsersUpdate);
       socketInstance.off("groups:update", onGroupsUpdate);
       socketInstance.off("dm:ready", onDmReady);
       socketInstance.off("dm:message", onDmMessage);
       socketInstance.off("group:message", onGroupMessage);
-      socketInstance.off('groups:join:request', onJoinRequest);
-      socketInstance.off('groups:approved', onApproved);
-      socketInstance.off('groups:rejected', onRejected);
     };
   }, [socketInstance, active, you]);
+
+  // Request browser notification permission once user registers
+  useEffect(() => {
+    try {
+      if (!registered) return;
+      if (typeof Notification === "undefined") return;
+      if (Notification.permission === "default") {
+        Notification.requestPermission();
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [registered]);
+
+  // When user opens a chat, clear any toasts for that room and reset unread count
+  useEffect(() => {
+    if (!active) return;
+    try {
+      // remove toasts for this room
+      setToasts((prev) => prev.filter((t) => t.room !== active.room));
+      // clear unread count for this room
+      setUnread((prev) => ({ ...prev, [active.room]: 0 }));
+    } catch (e) {
+      console.error('Error clearing toasts/unread on active change', e, active);
+    }
+  }, [active]);
 
   const doRegister = () => {
     setError("");
     const name = username.trim();
     if (!name) return setError("Please enter a username");
-  socketInstance.emit("register", name, (res) => {
+    if (!socketInstance) return setError("Not connected to server");
+    socketInstance.emit("register", name, (res) => {
       if (!res?.ok) return setError(res?.error || "Register failed");
       setRegistered(true);
       setYou(name);
@@ -100,21 +206,25 @@ function App() {
   const startDM = (toUsername) => {
     setError("");
     if (toUsername === you) return; // ignore self
-  socketInstance.emit("dm:start", toUsername, (res) => {
+    if (!socketInstance) return setError("Not connected to server");
+    socketInstance.emit("dm:start", toUsername, (res) => {
       if (!res?.ok) return setError(res?.error || "DM start failed");
       // Select this DM
       setActive({ kind: "dm", room: res.room, label: `DM with ${toUsername}` });
+      // remember mapping username -> room so we can show per-user unread counts
+      setDmRooms((prev) => ({ ...prev, [toUsername]: res.room }));
+      // clear unread for this room when opening
+      setUnread((prev) => ({ ...prev, [res.room]: 0 }));
     });
   };
 
   const [groupName, setGroupName] = useState("");
-  const [groupPrivate, setGroupPrivate] = useState(false);
-  const [groupRequestMsg, setGroupRequestMsg] = useState("");
   const createGroup = () => {
     setError("");
     const g = groupName.trim();
     if (!g) return setError("Group name is required");
-  socketInstance.emit("groups:create", { name: g, private: groupPrivate }, (res) => {
+    if (!socketInstance) return setError("Not connected to server");
+    socketInstance.emit("groups:create", g, (res) => {
       if (!res?.ok) return setError(res?.error || "Create group failed");
       setGroupName("");
       setActive({ kind: "group", room: `group:${g}`, label: `Group: ${g}`, groupName: g });
@@ -123,29 +233,10 @@ function App() {
 
   const joinGroup = (gname) => {
     setError("");
-    setGroupRequestMsg("");
-    const g = groups.find((x) => x.name === gname);
-    if (g && g.private) {
-      // send join request
-      socketInstance.emit("groups:requestJoin", gname, (res) => {
-        if (!res?.ok) return setError(res?.error || "Request failed");
-        setGroupRequestMsg("Request sent");
-      });
-      return;
-    }
+    if (!socketInstance) return setError("Not connected to server");
     socketInstance.emit("groups:join", gname, (res) => {
       if (!res?.ok) return setError(res?.error || "Join group failed");
       setActive({ kind: "group", room: `group:${gname}`, label: `Group: ${gname}`, groupName: gname });
-    });
-  };
-
-  const deleteGroup = (gname) => {
-    setError("");
-    if (!window.confirm(`Delete group "${gname}"? This will remove the group for everyone.`)) return;
-    socketInstance.emit("groups:delete", gname, (res) => {
-      if (!res?.ok) return setError(res?.error || "Delete group failed");
-      // If the deleted group was active, clear active
-      if (active?.groupName === gname) setActive(null);
     });
   };
 
@@ -155,13 +246,13 @@ function App() {
     const t = text.trim();
     if (!active) return setError("Select a chat first");
     if (!t) return; // ignore empty
-
+    if (!socketInstance) return setError("Not connected to server");
     if (active.kind === "dm") {
-  socketInstance.emit("dm:message", { room: active.room, text: t }, (res) => {
+      socketInstance.emit("dm:message", { room: active.room, text: t }, (res) => {
         if (!res?.ok) return setError(res?.error || "Send failed");
       });
     } else if (active.kind === "group") {
-  socketInstance.emit("group:message", { groupName: active.groupName, text: t }, (res) => {
+      socketInstance.emit("group:message", { groupName: active.groupName, text: t }, (res) => {
         if (!res?.ok) return setError(res?.error || "Send failed");
       });
     }
@@ -200,50 +291,69 @@ function App() {
         <section className="section">
           <h4>Online users</h4>
           <ul className="list">
-            {users.map((u) => (
-              <li key={u} className="user-item">
-                <span>{u}{u === you ? " (you)" : ""}</span>
-                {u !== you && (
-                  <button className="btn btn-small" onClick={() => startDM(u)}>DM</button>
-                )}
-              </li>
-            ))}
+            {users.map((u) => {
+              const roomForU = dmRooms[u];
+              const count = roomForU ? (unread[roomForU] || 0) : 0;
+              return (
+                <li key={u} className="user-item">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>{u}{u === you ? " (you)" : ""}</span>
+                    {/* Show logo badge if there are unread messages for this user's DM */}
+                          {u !== you && count > 0 && (
+                            <UnreadLogo size={44} count={count} badgeColor="#ff3b30" onlyBadge={true} />
+                          )}
+                  </span>
+                  {u !== you && (
+                    <button 
+                      className="btn btn-small" 
+                      onClick={() => {
+                        startDM(u);
+                        // If we already had a room mapping, clear unread now
+                        if (dmRooms[u]) setUnread(prev => ({ ...prev, [dmRooms[u]]: 0 }));
+                      }}
+                    >DM</button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </section>
         <section className="section">
           <h4>Groups</h4>
-          <div className="group-form" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="group-form">
             <input
               className="input"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               placeholder="New group name"
               onKeyDown={(e) => e.key === "Enter" && createGroup()}
-              style={{ width: '90%', maxWidth: 300 }}
             />
-            <div style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input type="checkbox" checked={groupPrivate} onChange={(e) => setGroupPrivate(e.target.checked)} /> Private
-              </label>
-              <button className="btn" onClick={createGroup}>Create</button>
-            </div>
+            <button className="btn" onClick={createGroup}>Create</button>
           </div>
           <ul className="list">
             {groups.map((g) => (
               <li key={g.name} className="group-item">
-                <strong>{g.name}{g.private ? ' 🔒' : ''}</strong>
+                <strong>
+                  {g.name}
+                  {/* Show unread count if exists for this group */}
+                  {isMember(g) && (() => {
+                    const room = `group:${g.name}`;
+                    const c = unread[room] || 0;
+                    return c > 0 ? <UnreadLogo size={36} count={c} badgeColor="#ff3b30" onlyBadge={true} /> : null;
+                  })()}
+                </strong>
                 {isMember(g) ? (
-                  <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                    <button
-                      className="btn btn-small"
-                      onClick={() => setActive({ kind: "group", room: `group:${g.name}`, label: `Group: ${g.name}`, groupName: g.name })}
-                    >Open</button>
-                    <button className="btn btn-small" onClick={() => deleteGroup(g.name)}>Delete</button>
-                  </div>
+                  <button
+                    className="btn btn-small"
+                    onClick={() => {
+                      setActive({ kind: "group", room: `group:${g.name}`, label: `Group: ${g.name}`, groupName: g.name });
+                      // Clear unread count when opening group
+                      setUnread(prev => ({ ...prev, [`group:${g.name}`]: 0 }));
+                    }}
+                  >Open</button>
                 ) : (
-                  <button className="btn btn-small" onClick={() => joinGroup(g.name)}>{g.private ? 'Request to join' : 'Join'}</button>
+                  <button className="btn btn-small" onClick={() => joinGroup(g.name)}>Join</button>
                 )}
-                {g.pending && g.pending.length > 0 && <small style={{ marginLeft: 8, color: '#666' }}>{g.pending.length} pending</small>}
               </li>
             ))}
           </ul>
@@ -262,32 +372,6 @@ function App() {
               {(groups.find((g) => g.name === active.groupName)?.members || []).map((m) => (
                 <span key={m} className={`chip ${m === you ? 'me' : ''}`}>{m}</span>
               ))}
-              {(() => {
-                const ag = groups.find((g) => g.name === active.groupName);
-                if (ag && ag.owner === you && ag.pending && ag.pending.length) {
-                  return (
-                    <div style={{ marginLeft: 12 }}>
-                      <div style={{ fontSize: 12, color: '#333', marginTop: 6 }}>Pending requests:</div>
-                      {ag.pending.map((p) => (
-                        <div key={p} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
-                          <span className="chip">{p}</span>
-                          <button className="btn btn-small" onClick={() => {
-                            socketInstance.emit('groups:approve', { groupName: ag.name, username: p }, (res) => {
-                              if (!res?.ok) return setError(res?.error || 'Approve failed');
-                            });
-                          }}>Approve</button>
-                          <button className="btn btn-small" onClick={() => {
-                            socketInstance.emit('groups:reject', { groupName: ag.name, username: p }, (res) => {
-                              if (!res?.ok) return setError(res?.error || 'Reject failed');
-                            });
-                          }}>Reject</button>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-                return null;
-              })()}
             </div>
           )}
         </header>
@@ -321,6 +405,33 @@ function App() {
           </div>
         </footer>
       </main>
+      {/* Toasts container (bottom-right) */}
+      <div className="toast-container">
+        {toasts.map((t) => (
+          <div key={t.id} className="toast" onClick={() => {
+            try {
+              window.focus();
+              if (t.type === "group") {
+                setActive({ kind: "group", room: t.room, label: `Group: ${t.room.replace(/^group:/, '')}`, groupName: t.room.replace(/^group:/, '') });
+                // Clear unread count when opening group from toast
+                setUnread(prev => ({ ...prev, [t.room]: 0 }));
+              } else {
+                // try to show DM label using sender
+                setActive({ kind: "dm", room: t.room, label: `DM` });
+                // Clear unread count when opening DM from toast
+                setUnread(prev => ({ ...prev, [t.room]: 0 }));
+              }
+              // remove this toast
+              setToasts((prev) => prev.filter((x) => x.id !== t.id));
+            } catch (e) {
+              // ignore
+            }
+          }}>
+            <div className="toast-title">{t.title}</div>
+            <div className="toast-body">{t.body}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 

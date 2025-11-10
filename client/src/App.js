@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
+import NotificationService from './notifications/notificationService';
+import Notifications from './components/Notifications';
+import UnreadLogo from './components/UnreadLogo';
 
 const serverURL =
   process.env.REACT_APP_SERVER_URL ||
@@ -22,6 +25,12 @@ function App() {
   const [messagesByRoom, setMessagesByRoom] = useState({});
   // Active chat selection
   const [active, setActive] = useState(null); // { kind: 'dm'|'group', room, label, groupName? }
+  // unread counts per room
+  const [unread, setUnread] = useState({});
+
+  const dmRoomId = (a, b) => {
+    try { return `dm:${[a, b].sort().join("|")}`; } catch (e) { return null; }
+  };
 
   // Register and subscriptions
   useEffect(() => {
@@ -44,6 +53,16 @@ function App() {
         ...prev,
         [msg.room]: [...(prev[msg.room] || []), msg],
       }));
+      // increment unread if not viewing this room and not our own message
+      if (msg.from !== you && (!active || active.room !== msg.room)) {
+        setUnread((prev) => ({ ...prev, [msg.room]: (prev[msg.room] || 0) + 1 }));
+      }
+      // show in-app notification unless user is viewing this room
+      try {
+        if (!active || active.room !== msg.room) {
+          NotificationService.notify({ title: msg.from + (msg.type === 'group' ? ` @ ${msg.groupName}` : ' (DM)'), body: msg.text, room: msg.room, type: msg.type });
+        }
+      } catch (e) { console.error('notify dm message failed', e, msg); }
     };
 
     const onGroupMessage = (msg) => {
@@ -51,6 +70,16 @@ function App() {
         ...prev,
         [msg.room]: [...(prev[msg.room] || []), msg],
       }));
+      // increment unread if not viewing this room and not our own message
+      if (msg.from !== you && (!active || active.room !== msg.room)) {
+        setUnread((prev) => ({ ...prev, [msg.room]: (prev[msg.room] || 0) + 1 }));
+      }
+      // show in-app notification unless user is viewing this room
+      try {
+        if (!active || active.room !== msg.room) {
+          NotificationService.notify({ title: msg.from + (msg.groupName ? ` @ ${msg.groupName}` : ''), body: msg.text, room: msg.room, type: msg.type });
+        }
+      } catch (e) { console.error('notify group message failed', e, msg); }
     };
 
     socketInstance.on("users:update", onUsersUpdate);
@@ -84,6 +113,14 @@ function App() {
     };
   }, [socketInstance, active, you]);
 
+  // When user opens a chat, clear unread for that room
+  useEffect(() => {
+    if (!active) return;
+    try {
+      setUnread((prev) => ({ ...prev, [active.room]: 0 }));
+    } catch (e) { /* ignore */ }
+  }, [active]);
+
   const doRegister = () => {
     setError("");
     const name = username.trim();
@@ -104,6 +141,8 @@ function App() {
       if (!res?.ok) return setError(res?.error || "DM start failed");
       // Select this DM
       setActive({ kind: "dm", room: res.room, label: `DM with ${toUsername}` });
+      // clear unread for this room when opening
+      setUnread((prev) => ({ ...prev, [res.room]: 0 }));
     });
   };
 
@@ -118,6 +157,7 @@ function App() {
       if (!res?.ok) return setError(res?.error || "Create group failed");
       setGroupName("");
       setActive({ kind: "group", room: `group:${g}`, label: `Group: ${g}`, groupName: g });
+      setUnread((prev) => ({ ...prev, [`group:${g}`]: 0 }));
     });
   };
 
@@ -136,6 +176,7 @@ function App() {
     socketInstance.emit("groups:join", gname, (res) => {
       if (!res?.ok) return setError(res?.error || "Join group failed");
       setActive({ kind: "group", room: `group:${gname}`, label: `Group: ${gname}`, groupName: gname });
+      setUnread((prev) => ({ ...prev, [`group:${gname}`]: 0 }));
     });
   };
 
@@ -200,18 +241,33 @@ function App() {
         <section className="section">
           <h4>Online users</h4>
           <ul className="list">
-            {users.map((u) => (
-              <li key={u} className="user-item">
-                <span>{u}{u === you ? " (you)" : ""}</span>
-                {u !== you && (
-                  <button className="btn btn-small" onClick={() => startDM(u)}>DM</button>
-                )}
-              </li>
-            ))}
+            {users.map((u) => {
+              const roomForU = dmRoomId(you, u);
+              const count = roomForU ? (unread[roomForU] || 0) : 0;
+              return (
+                <li key={u} className="user-item">
+                  <span className="user-name-wrap">
+                    <span>{u}{u === you ? " (you)" : ""}</span>
+                    {/* unread badge behind name */}
+                    {u !== you && count > 0 && (
+                      <span className="unread-badge"><UnreadLogo size={20} count={count} badgeColor="#ff3b30" onlyBadge={true} /></span>
+                    )}
+                  </span>
+                  {u !== you && (
+                    <button className="btn btn-small" onClick={() => {
+                      startDM(u);
+                      // clear unread for this dm if exists
+                      if (roomForU) setUnread((prev) => ({ ...prev, [roomForU]: 0 }));
+                    }}>DM</button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </section>
         <section className="section">
           <h4>Groups</h4>
+          {groupRequestMsg && <div style={{ marginBottom: 8, color: '#3b3', fontSize: 13 }}>{groupRequestMsg}</div>}
           <div className="group-form" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <input
               className="input"
@@ -229,23 +285,35 @@ function App() {
             </div>
           </div>
           <ul className="list">
-            {groups.map((g) => (
-              <li key={g.name} className="group-item">
-                <strong>{g.name}{g.private ? ' 🔒' : ''}</strong>
-                {isMember(g) ? (
-                  <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                    <button
-                      className="btn btn-small"
-                      onClick={() => setActive({ kind: "group", room: `group:${g.name}`, label: `Group: ${g.name}`, groupName: g.name })}
-                    >Open</button>
-                    <button className="btn btn-small" onClick={() => deleteGroup(g.name)}>Delete</button>
-                  </div>
-                ) : (
-                  <button className="btn btn-small" onClick={() => joinGroup(g.name)}>{g.private ? 'Request to join' : 'Join'}</button>
-                )}
-                {g.pending && g.pending.length > 0 && <small style={{ marginLeft: 8, color: '#666' }}>{g.pending.length} pending</small>}
-              </li>
-            ))}
+            {groups.map((g) => {
+              const room = `group:${g.name}`;
+              const count = unread[room] || 0;
+              return (
+                <li key={g.name} className="group-item">
+                  <strong className="group-name-wrap">
+                    {g.name}{g.private ? ' 🔒' : ''}
+                    {isMember(g) && count > 0 && (
+                      <span className="group-unread-badge"><UnreadLogo size={20} count={count} badgeColor="#ff3b30" onlyBadge={true} /></span>
+                    )}
+                  </strong>
+                  {isMember(g) ? (
+                    <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                      <button
+                        className="btn btn-small"
+                        onClick={() => {
+                          setActive({ kind: "group", room: `group:${g.name}`, label: `Group: ${g.name}`, groupName: g.name });
+                          setUnread((prev) => ({ ...prev, [room]: 0 }));
+                        }}
+                      >Open</button>
+                      <button className="btn btn-small" onClick={() => deleteGroup(g.name)}>Delete</button>
+                    </div>
+                  ) : (
+                    <button className="btn btn-small" onClick={() => joinGroup(g.name)}>{g.private ? 'Request to join' : 'Join'}</button>
+                  )}
+                  {g.pending && g.pending.length > 0 && <small style={{ marginLeft: 8, color: '#666' }}>{g.pending.length} pending</small>}
+                </li>
+              );
+            })}
           </ul>
           <p className="muted" style={{ marginTop: 8 }}>
             Members of selected group appear inside the group’s page.
@@ -321,6 +389,17 @@ function App() {
           </div>
         </footer>
       </main>
+      {/* Notifications layer (bottom-left) */}
+      <Notifications onOpen={(room, type) => {
+        try {
+          if (type === 'group') {
+            const gname = room.replace(/^group:/, '');
+            setActive({ kind: 'group', room, label: `Group: ${gname}`, groupName: gname });
+          } else {
+            setActive({ kind: 'dm', room, label: `DM` });
+          }
+        } catch (e) { /* ignore */ }
+      }} />
     </div>
   );
 

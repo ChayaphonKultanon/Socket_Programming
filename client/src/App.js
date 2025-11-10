@@ -22,9 +22,66 @@ function App() {
   const [messagesByRoom, setMessagesByRoom] = useState({});
   // Active chat selection
   const [active, setActive] = useState(null); // { kind: 'dm'|'group', room, label, groupName? }
+  // In-app toasts for new messages (bottom-right)
+  const [toasts, setToasts] = useState([]); // { id, title, body, room, type, timestamp }
 
   // Register and subscriptions
   useEffect(() => {
+    // Helper: show browser notification for an incoming message and in-app toast
+    const removeToast = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
+
+    const pushToast = (msg) => {
+      if (!msg || msg.from === you) return;
+      // If user is focused and viewing same room, skip toast
+      if (document.hasFocus() && active && active.room === msg.room) return;
+      const id = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+      const title = msg.type === "group" ? `${msg.from} @ ${msg.groupName}` : `${msg.from} (DM)`;
+      const toast = { id, title, body: msg.text, room: msg.room, type: msg.type, timestamp: msg.timestamp };
+      setToasts((prev) => [toast, ...prev]);
+      // auto-dismiss
+      setTimeout(() => removeToast(id), 4200);
+    };
+
+    const showNotification = (msg) => {
+      try {
+        // Always show in-app toast (unless it's your own message or you're viewing it)
+        pushToast(msg);
+      } catch (e) {
+        // ignore
+      }
+
+      try {
+        if (typeof Notification === "undefined") return;
+        if (Notification.permission !== "granted") return;
+        if (!msg || msg.from === you) return; // don't notify for your own messages
+        // If user is focused and viewing same room, skip browser notification
+        if (document.hasFocus() && active && active.room === msg.room) return;
+
+        const title = msg.type === "group" ? `${msg.from} @ ${msg.groupName}` : `${msg.from} (DM)`;
+        const options = {
+          body: msg.text,
+          tag: msg.room,
+          timestamp: msg.timestamp,
+        };
+        const n = new Notification(title, options);
+        n.onclick = () => {
+          try {
+            window.focus();
+            if (msg.type === "group") {
+              setActive({ kind: "group", room: msg.room, label: `Group: ${msg.groupName}`, groupName: msg.groupName });
+            } else {
+              setActive({ kind: "dm", room: msg.room, label: `DM with ${msg.from}` });
+            }
+            n.close();
+          } catch (e) {
+            // ignore
+          }
+        };
+      } catch (e) {
+        // Notification failed silently
+      }
+    };
+
     const onUsersUpdate = (list) => setUsers(list || []);
     const onGroupsUpdate = (list) => setGroups(list || []);
 
@@ -44,6 +101,7 @@ function App() {
         ...prev,
         [msg.room]: [...(prev[msg.room] || []), msg],
       }));
+      showNotification(msg);
     };
 
     const onGroupMessage = (msg) => {
@@ -51,6 +109,7 @@ function App() {
         ...prev,
         [msg.room]: [...(prev[msg.room] || []), msg],
       }));
+      showNotification(msg);
     };
 
     socketInstance.on("users:update", onUsersUpdate);
@@ -67,6 +126,19 @@ function App() {
       socketInstance.off("group:message", onGroupMessage);
     };
   }, [socketInstance, active, you]);
+
+  // Request browser notification permission once user registers
+  useEffect(() => {
+    try {
+      if (!registered) return;
+      if (typeof Notification === "undefined") return;
+      if (Notification.permission === "default") {
+        Notification.requestPermission();
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [registered]);
 
   const doRegister = () => {
     setError("");
@@ -247,6 +319,29 @@ function App() {
           </div>
         </footer>
       </main>
+      {/* Toasts container (bottom-right) */}
+      <div className="toast-container">
+        {toasts.map((t) => (
+          <div key={t.id} className="toast" onClick={() => {
+            try {
+              window.focus();
+              if (t.type === "group") {
+                setActive({ kind: "group", room: t.room, label: `Group: ${t.room.replace(/^group:/, '')}`, groupName: t.room.replace(/^group:/, '') });
+              } else {
+                // try to show DM label using sender
+                setActive({ kind: "dm", room: t.room, label: `DM` });
+              }
+              // remove this toast
+              setToasts((prev) => prev.filter((x) => x.id !== t.id));
+            } catch (e) {
+              // ignore
+            }
+          }}>
+            <div className="toast-title">{t.title}</div>
+            <div className="toast-body">{t.body}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 

@@ -7,9 +7,8 @@ import NotificationService from './notifications/notificationService';
 import Notifications from './components/Notifications';
 import UnreadLogo from './components/UnreadLogo';
 
-const serverURL =
-  process.env.REACT_APP_SERVER_URL ||
-  `${window.location.protocol}//${window.location.hostname}:4000`;
+// const serverURL = "http://172.20.10.3:4000";
+const serverURL = "http://localhost:4000";
 
 function App() {
   // Create a single socket instance (avoids duplicate connections in StrictMode)
@@ -38,6 +37,16 @@ function App() {
   useEffect(() => {
     const onUsersUpdate = (list) => setUsers(list || []);
     const onGroupsUpdate = (list) => setGroups(list || []);
+    const onHistoryLoad = (byRoom) => {
+      if (!byRoom || typeof byRoom !== 'object') return;
+      setMessagesByRoom((prev) => {
+        const next = { ...prev };
+        Object.entries(byRoom).forEach(([room, arr]) => {
+          next[room] = [ ...(prev[room] || []), ...(arr || []) ];
+        });
+        return next;
+      });
+    };
 
     const onDmReady = (payload) => {
       // payload: { room, type: 'dm', with: [a,b] }
@@ -99,9 +108,10 @@ function App() {
     socketInstance.on('groups:join:request', onJoinRequest);
     socketInstance.on('groups:approved', onApproved);
     socketInstance.on('groups:rejected', onRejected);
-    socketInstance.on("dm:ready", onDmReady);
+  socketInstance.on("dm:ready", onDmReady);
     socketInstance.on("dm:message", onDmMessage);
     socketInstance.on("group:message", onGroupMessage);
+  socketInstance.on('history:load', onHistoryLoad);
 
     return () => {
       socketInstance.off("users:update", onUsersUpdate);
@@ -112,6 +122,7 @@ function App() {
       socketInstance.off('groups:join:request', onJoinRequest);
       socketInstance.off('groups:approved', onApproved);
       socketInstance.off('groups:rejected', onRejected);
+      socketInstance.off('history:load', onHistoryLoad);
     };
   }, [socketInstance, active, you]);
 

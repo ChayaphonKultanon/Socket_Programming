@@ -188,6 +188,22 @@
 .btn:active { transform: translateY(1px); }
 .btn:disabled { filter: grayscale(0.2) brightness(0.9); cursor: not-allowed; }
 
+/* Unread message badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  margin-left: 6px;
+  background: linear-gradient(180deg, var(--pink-400), var(--pink-500));
+  color: white;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
 .btn-small {
   padding: 6px 10px;
   font-size: 12px;

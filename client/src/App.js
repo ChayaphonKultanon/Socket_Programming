@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { io } from "socket.io-client";
+import "./App.css";
 
 const serverURL =
   process.env.REACT_APP_SERVER_URL ||
@@ -130,87 +131,98 @@ function App() {
   };
 
   const renderLogin = () => (
-    <div style={{ maxWidth: 420, margin: "40px auto", padding: 16 }}>
-      <h2>Login</h2>
-      <p>Pick a unique name to join the chat.</p>
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Enter unique username"
-          onKeyDown={(e) => e.key === "Enter" && doRegister()}
-          style={{ flex: 1 }}
-        />
-        <button onClick={doRegister}>Join</button>
+    <div className="login-wrap">
+      <div className="login-card">
+        <h2 style={{ marginTop: 0 }}>Welcome</h2>
+        <p className="muted">Pick a unique name to join the chat.</p>
+        <div className="stack">
+          <input
+            className="input"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Enter unique username"
+            onKeyDown={(e) => e.key === "Enter" && doRegister()}
+          />
+          <button className="btn" onClick={doRegister}>Join</button>
+        </div>
+        {error && <p style={{ color: "crimson" }}>{error}</p>}
+        <p className="muted" style={{ marginTop: 16 }}>
+          Server: <code>{serverURL}</code>
+        </p>
       </div>
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-      <p style={{ marginTop: 24, color: "#666" }}>
-        Server: <code>{serverURL}</code>
-      </p>
     </div>
   );
 
   const isMember = (g) => (g?.members || []).includes(you);
 
   const renderMain = () => (
-    <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", height: "100vh" }}>
-      <aside style={{ borderRight: "1px solid #ddd", padding: 12, overflow: "auto" }}>
-        <h3>Hi, {you}</h3>
-        <section>
+    <div className="app-shell">
+      <aside className="sidebar" style={{ overflow: "auto" }}>
+        <h3 className="hello">Hi, {you}</h3>
+        <section className="section">
           <h4>Online users</h4>
-          <ul style={{ listStyle: "none", paddingLeft: 0 }}>
+          <ul className="list">
             {users.map((u) => (
-              <li key={u} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "4px 0" }}>
+              <li key={u} className="user-item">
                 <span>{u}{u === you ? " (you)" : ""}</span>
                 {u !== you && (
-                  <button onClick={() => startDM(u)} style={{ fontSize: 12 }}>DM</button>
+                  <button className="btn btn-small" onClick={() => startDM(u)}>DM</button>
                 )}
               </li>
             ))}
           </ul>
         </section>
-        <section style={{ marginTop: 16 }}>
+        <section className="section">
           <h4>Groups</h4>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="group-form">
             <input
+              className="input"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               placeholder="New group name"
               onKeyDown={(e) => e.key === "Enter" && createGroup()}
-              style={{ flex: 1 }}
             />
-            <button onClick={createGroup}>Create</button>
+            <button className="btn" onClick={createGroup}>Create</button>
           </div>
-          <ul style={{ listStyle: "none", paddingLeft: 0 }}>
+          <ul className="list">
             {groups.map((g) => (
-              <li key={g.name} style={{ padding: "6px 0", borderBottom: "1px solid #eee" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <strong>{g.name}</strong>
-                  {isMember(g) ? (
-                    <button onClick={() => setActive({ kind: "group", room: `group:${g.name}`, label: `Group: ${g.name}`, groupName: g.name })} style={{ fontSize: 12 }}>Open</button>
-                  ) : (
-                    <button onClick={() => joinGroup(g.name)} style={{ fontSize: 12 }}>Join</button>
-                  )}
-                </div>
-                <div style={{ color: "#666", fontSize: 12, marginTop: 4 }}>
-                  Members: {(g.members || []).join(", ") || "-"}
-                </div>
+              <li key={g.name} className="group-item">
+                <strong>{g.name}</strong>
+                {isMember(g) ? (
+                  <button
+                    className="btn btn-small"
+                    onClick={() => setActive({ kind: "group", room: `group:${g.name}`, label: `Group: ${g.name}`, groupName: g.name })}
+                  >Open</button>
+                ) : (
+                  <button className="btn btn-small" onClick={() => joinGroup(g.name)}>Join</button>
+                )}
               </li>
             ))}
           </ul>
+          <p className="muted" style={{ marginTop: 8 }}>
+            Members of selected group appear inside the group’s page.
+          </p>
         </section>
         {error && <p style={{ color: "crimson", marginTop: 8 }}>{error}</p>}
       </aside>
-      <main style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <header style={{ padding: 12, borderBottom: "1px solid #ddd", minHeight: 56 }}>
-          <h3 style={{ margin: 0 }}>{active ? active.label : "Select a chat"}</h3>
+
+      <main className="main">
+        <header className="chat-header">
+          <h3 className="chat-title">{active ? active.label : "Select a chat"}</h3>
+          {active && active.kind === "group" && (
+            <div className="members-row">
+              {(groups.find((g) => g.name === active.groupName)?.members || []).map((m) => (
+                <span key={m} className={`chip ${m === you ? 'me' : ''}`}>{m}</span>
+              ))}
+            </div>
+          )}
         </header>
-        <section style={{ flex: 1, overflow: "auto", padding: 12 }}>
+        <section className="chat-body">
           {active ? (
             <div>
               {(messagesByRoom[active.room] || []).map((m, i) => (
-                <div key={i} style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 12, color: "#666" }}>
+                <div key={i} className={`message ${m.from === you ? 'me' : ''}`}>
+                  <div className="meta">
                     <strong>{m.from}</strong> • {new Date(m.timestamp).toLocaleTimeString()}
                   </div>
                   <div>{m.text}</div>
@@ -218,20 +230,20 @@ function App() {
               ))}
             </div>
           ) : (
-            <p style={{ color: "#666" }}>Pick a user or group to start chatting.</p>
+            <p className="muted">Pick a user or group to start chatting.</p>
           )}
         </section>
-        <footer style={{ padding: 12, borderTop: "1px solid #ddd" }}>
-          <div style={{ display: "flex", gap: 8 }}>
+        <footer className="chat-footer">
+          <div className="stack">
             <input
+              className="input"
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
               placeholder={active ? "Type a message" : "Select a chat to start"}
               disabled={!active}
-              style={{ flex: 1 }}
             />
-            <button onClick={sendMessage} disabled={!active}>Send</button>
+            <button className="btn" onClick={sendMessage} disabled={!active}>Send</button>
           </div>
         </footer>
       </main>

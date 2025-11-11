@@ -23,6 +23,11 @@ This project implements a simple chat application satisfying the term project re
 Server: Node.js + Express + Socket.IO (in-memory state)
 Client: React (Create React App) + Socket.IO Client
 
+Authentication & Persistence
+
+- Optional auth endpoints were added (email/password) using MongoDB + JWT. See `server/routes/auth.js`.
+- If present, the server will read `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRE` and `JWT_COOKIE_EXPIRE` from the project root `.env` to enable persistent users and JWT auth.
+
 ## Folder Structure
 
 ```
@@ -43,6 +48,17 @@ npm run dev
 ```
 
 Server runs on port 4000 by default.
+
+If you want to enable MongoDB-backed auth, create a top-level `.env` with at least these variables:
+
+```
+MONGO_URI=your-mongodb-uri
+JWT_SECRET=your_jwt_secret
+JWT_EXPIRE=30d
+JWT_COOKIE_EXPIRE=30
+```
+
+The server will automatically load the root `.env` when starting from the `server/` folder.
 
 2. Start the client (on same or different machines):
 
@@ -66,6 +82,7 @@ Restart the client after changes.
 2. See the list of online users; click DM to open a direct chat. First DM click establishes the room.
 3. Create a group by entering a name and clicking Create; you become its sole member and can open it.
 4. Other users see the new group and can Join; members then exchange messages visible only to that group.
+	- Private groups: when creating a group you may mark it private. Private groups require the owner to approve join requests. If the owner disconnects, their private groups are automatically deleted.
 5. Switch between active DM or group chats; messages show sender and timestamp.
 
 ## Server Events Summary
@@ -79,6 +96,10 @@ Restart the client after changes.
 | groups:join   | client->server       | groupName (string)                | Join existing group.                                  |
 | groups:list   | client->server (ack) | —                                 | Ack with list of groups.                              |
 | groups:update | server->client       | [groups]                          | Broadcast group changes.                              |
+| groups:requestJoin | client->server    | groupName                         | Request to join a private group (owner notified).     |
+| groups:approve | client->server       | {groupName,username}              | Owner approves a pending join request.                |
+| groups:reject  | client->server       | {groupName,username}              | Owner rejects a pending join request.                 |
+| groups:deleted | server->client       | {groupName}                       | Server informs members that a group was deleted.      |
 | group:message | both ways            | {groupName,text} / message object | Send/receive group messages.                          |
 | dm:start      | client->server       | toUsername (string)               | Establish private DM room.                            |
 | dm:ready      | server->client       | {room,with[]}                     | Notifies both participants of DM room.                |

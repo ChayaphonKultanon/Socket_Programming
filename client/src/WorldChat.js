@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import './App.css';
-import './worldchat-inline.css';
+import './WorldChat.css'; // ใช้ CSS เดียวกับ chat ปกติ
 
 const WorldChat = ({ socket, username }) => {
   const [messages, setMessages] = useState([]);
@@ -8,15 +7,8 @@ const WorldChat = ({ socket, username }) => {
   useEffect(() => {
     if (!socket) return;
 
-    // Listen for world chat history
-    const handleHistory = (history) => {
-      setMessages(history || []);
-    };
-
-    // Listen for new messages
-    const handleMessage = (message) => {
-      setMessages((prev) => [...prev, message]);
-    };
+    const handleHistory = (history) => setMessages(history || []);
+    const handleMessage = (message) => setMessages((prev) => [...prev, message]);
 
     socket.on('world:history', handleHistory);
     socket.on('world:message', handleMessage);
@@ -30,36 +22,27 @@ const WorldChat = ({ socket, username }) => {
   return (
     <div className="messages-container">
       {messages.map((msg, i) => {
-        const rawFrom = msg.from || '';
+        let namePart = msg.from || '';
+        let timePart = '';
 
-        // Extract name and time from rawFrom.
-        // Server sends format: "username:HH:MM:SS"
-        // Split by colon: if we have 4 parts, last 3 are time
-        let namePart = rawFrom;
-        let timePart = null;
-
-        if (typeof rawFrom === 'string' && rawFrom.includes(':')) {
-          const parts = rawFrom.split(':');
+        if (typeof msg.from === 'string' && msg.from.includes(':')) {
+          const parts = msg.from.split(':');
           if (parts.length >= 4) {
-            // Everything before the last 3 parts is the username (could have colons in theory)
-            namePart = parts.slice(0, -3).join(':');
-            // Last 3 parts are HH:MM:SS
-            timePart = parts.slice(-3).join(':');
+            namePart = parts.slice(0, -3).join(':'); // username
+            timePart = parts.slice(-3).join(':');    // HH:MM:SS
           }
         }
 
-        const timeToShow =
-          timePart || (msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '');
+        const timeToShow = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '' || timePart;
+
+        const isMe = namePart === username;
 
         return (
-          <div key={msg.id || i} className={`message ${msg.from === username ? 'me' : ''}`}>
-            <div className="message-line">
-              <span className="message-name">{namePart}</span>
-              <span className="sep"> : </span>
-              <span className="message-time">{timeToShow}</span>
-              <span className="sep"> : </span>
-              <span className="message-text">{msg.text}</span>
+          <div key={msg.id || i} className={`message ${isMe ? 'me' : ''}`}>
+            <div className="meta">
+              <strong>{namePart}</strong> • {timeToShow}
             </div>
+            <div>{msg.text}</div>
           </div>
         );
       })}
@@ -67,6 +50,4 @@ const WorldChat = ({ socket, username }) => {
   );
 };
 
-// Export the component and add display name for debugging
-WorldChat.displayName = 'WorldChat';
 export default WorldChat;

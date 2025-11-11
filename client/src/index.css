@@ -1,3 +1,7 @@
+html {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
 html,
 body,
 #root {
@@ -10,9 +14,10 @@ body {
     Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: radial-gradient(1200px 800px at -10% -10%, #fff0f6, transparent 60%),
-    radial-gradient(1200px 800px at 110% 10%, #ffe4ec, transparent 60%),
-    linear-gradient(180deg, #fff7fa, #ffffff);
+  background: radial-gradient(1200px 800px at -10% -10%, var(--pink-50), transparent 60%),
+    radial-gradient(1200px 800px at 110% 10%, var(--pink-100), transparent 60%),
+    linear-gradient(180deg, var(--bg), var(--white));
+  transition: background 0.3s ease;
 }
 
 code {

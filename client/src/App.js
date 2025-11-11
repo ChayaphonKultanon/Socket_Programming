@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
+import "./WorldChat.css";
+import WorldChat from './WorldChat';
 import NotificationService from './notifications/notificationService';
 import Notifications from './components/Notifications';
 import UnreadLogo from './components/UnreadLogo';
@@ -202,22 +204,47 @@ function App() {
   };
 
   const [text, setText] = useState("");
+  const worldInputRef = useRef(null);
+
+  // autofocus the world input on mount
+  useEffect(() => {
+    if (worldInputRef.current) {
+      try { worldInputRef.current.focus(); } catch (e) { /* ignore */ }
+    }
+  }, []);
   const sendMessage = () => {
     setError("");
     const t = text.trim();
-    if (!active) return setError("Select a chat first");
+  if (!active) return setError("Select a chat first");
     if (!t) return; // ignore empty
 
-    if (active.kind === "dm") {
-  socketInstance.emit("dm:message", { room: active.room, text: t }, (res) => {
+    if (active && active.kind === "world") {
+      socketInstance.emit("world:message", { text: t }, (res) => {
         if (!res?.ok) return setError(res?.error || "Send failed");
+        setText("");
+      });
+    } else if (active.kind === "dm") {
+      socketInstance.emit("dm:message", { room: active.room, text: t }, (res) => {
+        if (!res?.ok) return setError(res?.error || "Send failed");
+        setText("");
       });
     } else if (active.kind === "group") {
-  socketInstance.emit("group:message", { groupName: active.groupName, text: t }, (res) => {
+      socketInstance.emit("group:message", { groupName: active.groupName, text: t }, (res) => {
         if (!res?.ok) return setError(res?.error || "Send failed");
+        setText("");
       });
     }
-    setText("");
+  };
+
+  const sendWorldMessage = () => {
+    setError("");
+    const t = text.trim();
+    if (!you) return setError("Join to send messages");
+    if (!t) return; // ignore empty
+    socketInstance.emit("world:message", { text: t }, (res) => {
+      if (!res?.ok) return setError(res?.error || "Send failed");
+      setText("");
+    });
   };
 
   const renderLogin = () => (
@@ -250,6 +277,31 @@ function App() {
       <aside className="sidebar" style={{ overflow: "auto" }}>
         <h3 className="hello">Hi, {you}</h3>
         <section className="section">
+          {/* Inline world chat panel inside sidebar */}
+          <div className="world-inline-panel">
+            <div className="world-inline-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <strong>World Chat</strong>
+              </div>
+            </div> 
+            <div className="world-inline-body">
+              <WorldChat socket={socketInstance} username={you} />
+            </div>
+            <div className="world-inline-footer" style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <input
+                ref={worldInputRef}
+                className="input"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && sendWorldMessage()}
+                placeholder={you ? 'Message world chat' : 'Join to send messages'}
+                disabled={!you}
+                style={{ flex: 1 }}
+              />
+              <button className="btn" onClick={sendWorldMessage} disabled={!you || !text.trim()}>Send</button>
+            </div>
+          </div>
+
           <h4>Online users</h4>
           <ul className="list">
             {users.map((u) => {
@@ -334,58 +386,39 @@ function App() {
       </aside>
 
       <main className="main">
-        <header className="chat-header">
-          <h3 className="chat-title">{active ? active.label : "Select a chat"}</h3>
-          {active && active.kind === "group" && (
-            <div className="members-row">
-              {(groups.find((g) => g.name === active.groupName)?.members || []).map((m) => (
-                <span key={m} className={`chip ${m === you ? 'me' : ''}`}>{m}</span>
-              ))}
-              {(() => {
-                const ag = groups.find((g) => g.name === active.groupName);
-                if (ag && ag.owner === you && ag.pending && ag.pending.length) {
-                  return (
-                    <div style={{ marginLeft: 12 }}>
-                      <div style={{ fontSize: 12, color: '#333', marginTop: 6 }}>Pending requests:</div>
-                      {ag.pending.map((p) => (
-                        <div key={p} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
-                          <span className="chip">{p}</span>
-                          <button className="btn btn-small" onClick={() => {
-                            socketInstance.emit('groups:approve', { groupName: ag.name, username: p }, (res) => {
-                              if (!res?.ok) return setError(res?.error || 'Approve failed');
-                            });
-                          }}>Approve</button>
-                          <button className="btn btn-small" onClick={() => {
-                            socketInstance.emit('groups:reject', { groupName: ag.name, username: p }, (res) => {
-                              if (!res?.ok) return setError(res?.error || 'Reject failed');
-                            });
-                          }}>Reject</button>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-            </div>
-          )}
-        </header>
-        <section className="chat-body">
-          {active ? (
-            <div>
-              {(messagesByRoom[active.room] || []).map((m, i) => (
-                <div key={i} className={`message ${m.from === you ? 'me' : ''}`}>
-                  <div className="meta">
-                    <strong>{m.from}</strong> • {new Date(m.timestamp).toLocaleTimeString()}
-                  </div>
-                  <div>{m.text}</div>
+        <div className="chat-container">
+          <div className="private-chat">
+            <header className="chat-header">
+              <h3 className="chat-title">{active ? active.label : "Select a chat"}</h3>
+              {active && active.kind === "group" && (
+                <div className="members-row">
+                  {(groups.find((g) => g.name === active.groupName)?.members || []).map((m) => (
+                    <span key={m} className={`chip ${m === you ? 'me' : ''}`}>{m}</span>
+                  ))}
                 </div>
-              ))}
+              )}
+            </header>
+            <div className="chat-content">
+              {active ? (
+                <div>
+                  {(messagesByRoom[active.room] || []).map((m, i) => (
+                    <div key={i} className={`message ${m.from === you ? 'me' : ''}`}>
+                      <div className="meta">
+                        <strong>{m.from}</strong> • {new Date(m.timestamp).toLocaleTimeString()}
+                      </div>
+                      <div>{m.text}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted">Pick a user or group to start chatting.</p>
+              )}
             </div>
-          ) : (
-            <p className="muted">Pick a user or group to start chatting.</p>
-          )}
-        </section>
+          </div>
+
+          {/* world chat removed from the main columns - it's accessible via the left tab */}
+        </div>
+
         <footer className="chat-footer">
           <div className="stack">
             <input
@@ -411,6 +444,7 @@ function App() {
           }
         } catch (e) { /* ignore */ }
       }} />
+      
     </div>
   );
 

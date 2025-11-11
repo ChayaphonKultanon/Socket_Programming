@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import './App.css';
 import './WorldChat.css';
 import WorldChat from './WorldChat';
+import logo from './network_logo.jpg';
 import NotificationService from './notifications/notificationService';
 import Notifications from './components/Notifications';
 import UnreadLogo from './components/UnreadLogo';
@@ -66,7 +67,7 @@ function App() {
       // If no active chat, auto-select this DM
       if (!active) {
         const other = (payload.with || []).find((u) => u !== you) || payload.with?.[0];
-        setActive({ kind: 'dm', room: payload.room, label: `DM with ${other}` });
+        setActive({ kind: 'dm', room: payload.room, label: `${other}` });
       }
     };
 
@@ -209,7 +210,7 @@ function App() {
     socketInstance.emit('dm:start', toUsername, (res) => {
       if (!res?.ok) return setError(res?.error || 'DM start failed');
       // Select this DM
-      setActive({ kind: 'dm', room: res.room, label: `DM with ${toUsername}` });
+      setActive({ kind: 'dm', room: res.room, label: `${toUsername}` });
       // mark as read on server
       try {
         socketInstance.emit('rooms:read', res.room);
@@ -230,7 +231,7 @@ function App() {
       if (!res?.ok) return setError(res?.error || 'Create group failed');
       setGroupName('');
       const roomId = `group:${g}`;
-      setActive({ kind: 'group', room: roomId, label: `Group: ${g}`, groupName: g });
+      setActive({ kind: 'group', room: roomId, label: `${g}`, groupName: g });
       // mark as read on server
       try {
         socketInstance.emit('rooms:read', roomId);
@@ -256,7 +257,7 @@ function App() {
       setActive({
         kind: 'group',
         room: `group:${gname}`,
-        label: `Group: ${gname}`,
+        label: `${gname}`,
         groupName: gname,
       });
       setUnread((prev) => ({ ...prev, [`group:${gname}`]: 0 }));
@@ -327,7 +328,8 @@ function App() {
   const renderLogin = () => (
     <div className="login-wrap">
       <div className="login-card">
-        <h2 style={{ marginTop: 0 }}>Welcome</h2>
+        <img src={logo} alt="logo" className="login-logo" />
+        <h2 style={{ marginTop: 0 }}>Si Yod Kuman Thahan Kla</h2>
         <p className="muted">Pick a unique name to join the chat.</p>
         <div className="stack">
           <input
@@ -372,7 +374,7 @@ function App() {
                 onKeyDown={(e) => e.key === 'Enter' && sendWorldMessage()}
                 placeholder={you ? 'Message world chat' : 'Join to send messages'}
                 disabled={!you}
-                style={{ flex: 1 }}
+                style={{ flex: '1 1 200px', minWidth: 0 }}
               />
               <button
                 className="btn"
@@ -474,7 +476,7 @@ function App() {
                           setActive({
                             kind: 'group',
                             room: roomId,
-                            label: `Group: ${g.name}`,
+                            label: `${g.name}`,
                             groupName: g.name,
                           });
                           try {
@@ -503,9 +505,9 @@ function App() {
               );
             })}
           </ul>
-          <p className="muted" style={{ marginTop: 8 }}>
+          {/* <p className="muted" style={{ marginTop: 8 }}>
             Members of selected group appear inside the group’s page.
-          </p>
+          </p> */}
         </section>
         {error && <p style={{ color: 'crimson', marginTop: 8 }}>{error}</p>}
       </aside>
@@ -618,7 +620,7 @@ function App() {
           try {
             if (type === 'group') {
               const gname = room.replace(/^group:/, '');
-              setActive({ kind: 'group', room, label: `Group: ${gname}`, groupName: gname });
+              setActive({ kind: 'group', room, label: `${gname}`, groupName: gname });
             } else {
               setActive({ kind: 'dm', room, label: `DM` });
             }

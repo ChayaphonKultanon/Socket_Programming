@@ -195,6 +195,7 @@
 }
 
 .message {
+  width: fit-content;
   max-width: 70%;
   margin: 8px 0;
   padding: 10px 12px;
@@ -202,6 +203,8 @@
   box-shadow: var(--shadow);
   background: var(--white);
   border: 1px solid var(--border);
+  word-wrap: break-word;         
+  white-space: pre-wrap;
 }
 
 .message.me {
@@ -276,7 +279,23 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: var(--shadow);
-  padding: 20px;
+  padding: 24px 20px 20px; /* normal padding; logo will sit outside the card */
+  position: relative;
+}
+
+.login-card .login-logo {
+  display: block;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(100% + 16px); /* place logo fully above the card with a small gap */
+  width: 300px;
+  height: 300px;
+  /* border-radius: 50%; */
+  /* box-shadow: 0 12px 28px rgba(0,0,0,0.18); */
+  /* background: linear-gradient(180deg, var(--pink-400), var(--pink-500)); */
+  padding: 16px;
+  box-sizing: border-box;
 }
 
 .stack {
@@ -336,6 +355,10 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+
+  font-weight: normal;
+  color: var(--ink);
+  font-size: 16px;
 }
 /* Place the unread badge beside the name (to the right) */
 .user-name-wrap .unread-badge {
@@ -346,6 +369,10 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  /* Use the same font weight and color as usernames to match appearance */
+  font-weight: normal;
+  color: var(--ink);
+  font-size: 16px;
 }
 .group-name-wrap .group-unread-badge {
   position: static;

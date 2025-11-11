@@ -15,7 +15,7 @@ const WorldChat = ({ socket, username }) => {
 
     // Listen for new messages
     const handleMessage = (message) => {
-      setMessages(prev => [...prev, message]);
+      setMessages((prev) => [...prev, message]);
     };
 
     socket.on('world:history', handleHistory);
@@ -31,13 +31,13 @@ const WorldChat = ({ socket, username }) => {
     <div className="messages-container">
       {messages.map((msg, i) => {
         const rawFrom = msg.from || '';
-        
+
         // Extract name and time from rawFrom.
         // Server sends format: "username:HH:MM:SS"
         // Split by colon: if we have 4 parts, last 3 are time
         let namePart = rawFrom;
         let timePart = null;
-        
+
         if (typeof rawFrom === 'string' && rawFrom.includes(':')) {
           const parts = rawFrom.split(':');
           if (parts.length >= 4) {
@@ -47,8 +47,9 @@ const WorldChat = ({ socket, username }) => {
             timePart = parts.slice(-3).join(':');
           }
         }
-        
-        const timeToShow = timePart || (msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '');
+
+        const timeToShow =
+          timePart || (msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '');
 
         return (
           <div key={msg.id || i} className={`message ${msg.from === username ? 'me' : ''}`}>

@@ -1,0 +1,9 @@
+node_modules
+build
+dist
+client/node_modules
+server/node_modules
+*.log
+.git
+coverage
+public

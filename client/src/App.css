@@ -19,6 +19,11 @@
   --shadow: 0 10px 25px rgba(255, 105, 180, 0.15);
 }
 
+h2 {
+  color: var(--ink);
+  transition: color 0.3s ease;
+}
+
 .app-shell {
   height: 100vh;
   display: grid;
@@ -27,14 +32,16 @@
     radial-gradient(1200px 800px at 110% 10%, var(--pink-100), transparent 60%),
     linear-gradient(180deg, var(--bg), var(--white));
   color: var(--ink);
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 /* Sidebar */
 .sidebar {
   border-right: 1px solid var(--border);
   padding: 16px 14px;
-  background: rgba(255, 240, 246, 0.6);
+  background: var(--bg);
   backdrop-filter: blur(4px);
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .hello {
@@ -108,8 +115,9 @@
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--white);
   backdrop-filter: blur(4px);
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .world-chat {
@@ -119,9 +127,10 @@
   flex-direction: column;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--white);
   backdrop-filter: blur(4px);
   overflow: hidden;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .chat-header {
@@ -205,6 +214,8 @@
   border: 1px solid var(--border);
   word-wrap: break-word;         
   white-space: pre-wrap;
+  color: var(--ink);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .message.me {
@@ -231,11 +242,14 @@
   padding: 10px 12px;
   font-size: 14px;
   outline: none;
+  transition: all 0.2s ease;
 }
 
 .input {
   flex: 1;
   background: var(--white);
+  color: var(--ink);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
 .btn {
@@ -399,6 +413,24 @@
 .world-tab:hover {
   box-shadow: var(--shadow);
 }
+
+/* Dark theme overrides - when <html data-theme="dark"> is set */
+html[data-theme="dark"] {
+  --bg: #0f0f0f; /* near-black background */
+  --bg-strong: #1a1a1a;
+  --pink-50: #1a1a1a;
+  --pink-100: #242424;
+  --pink-200: #2d2d2d;
+  --pink-300: #3a3a3a;
+  --pink-400: #4a4a4a;
+  --pink-500: #ff1493; /* vibrant hot pink accent */
+  --pink-600: #e05595;
+  --ink: #f5f5f5; /* bright white text */
+  --muted: #a0a0a0;
+  --white: #1a1a1a; /* dark panels */
+  --border: rgba(255, 20, 147, 0.15);
+  --shadow: 0 10px 25px rgba(0, 0, 0, 0.8);
+}
 .world-tab.open {
   background: linear-gradient(180deg, var(--pink-200), var(--pink-100));
 }
@@ -417,7 +449,7 @@
   margin-top: 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--white);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -426,11 +458,12 @@
   max-height: 320px;
   flex: none;
   box-sizing: border-box;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 .world-inline-header {
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
-  background: var(--pink-50);
+  background: var(--white);
   display: flex;
   gap: 8px;
   align-items: center;
@@ -446,8 +479,10 @@
   padding: 8px;
   overflow-y: auto;
   flex: 1;
+  
 }
 .world-inline-footer {
   padding: 8px;
   border-top: 1px solid var(--border);
+  background: var(--white);
 }

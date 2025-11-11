@@ -17,6 +17,15 @@ function App() {
   // Create a single socket instance (avoids duplicate connections in StrictMode)
   const [socketInstance] = useState(() => io(serverURL));
 
+  // Theme: light | dark (persisted in localStorage)
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('theme') || 'light';
+    } catch (e) {
+      return 'light';
+    }
+  });
+
   // Auth / presence
   const [username, setUsername] = useState('');
   const [you, setYou] = useState('');
@@ -39,6 +48,17 @@ function App() {
       return null;
     }
   };
+
+  useEffect(() => {
+    try {
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) {}
+    try {
+      localStorage.setItem('theme', theme);
+    } catch (e) {}
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((t) => (t === 'light' ? 'dark' : 'light'));
 
   // Register and subscriptions
   useEffect(() => {
@@ -328,8 +348,17 @@ function App() {
   const renderLogin = () => (
     <div className="login-wrap">
       <div className="login-card">
+        <div style={{ position: 'absolute', right: 12, top: 12 }}>
+          <button
+            className="btn btn-small"
+            onClick={toggleTheme}
+            title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
+        </div>
         <img src={logo} alt="logo" className="login-logo" />
-        <h2 style={{ marginTop: 0 }}>Si Yod Kuman Thahan Kla</h2>
+        <h2 className="ink" style={{ marginTop: 0 }}>Si Yod Kuman Thahan Kla</h2>
         <p className="muted">Pick a unique name to join the chat.</p>
         <div className="stack">
           <input
@@ -353,7 +382,18 @@ function App() {
   const renderMain = () => (
     <div className="app-shell">
       <aside className="sidebar" style={{ overflow: 'auto' }}>
-        <h3 className="hello">Hi, {you}</h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <h3 className="hello">Hi, {you}</h3>
+          <div>
+            <button
+              className="btn btn-small"
+              onClick={toggleTheme}
+              title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            >
+              {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
+            </button>
+          </div>
+        </div>
         <section className="section">
           {/* Inline world chat panel inside sidebar */}
           <div className="world-inline-panel">

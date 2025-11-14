@@ -7,6 +7,7 @@ import logo from './network_logo.jpg';
 import NotificationService from './notifications/notificationService';
 import Notifications from './components/Notifications';
 import UnreadLogo from './components/UnreadLogo';
+import Avatar from './components/Avatar';
 
 // If you need to override the server URL (different host/port), set REACT_APP_SERVER_URL in the client env.
 // const serverURL = process.env.REACT_APP_SERVER_URL || window.location.origin;
@@ -433,6 +434,7 @@ function App() {
               const count = roomForU ? unread[roomForU] || 0 : 0;
               return (
                 <li key={u} className="user-item">
+                  <Avatar name={u} size={36} />
                   <span className="user-name-wrap">
                     <span>
                       {u}
@@ -441,7 +443,7 @@ function App() {
                     {/* unread badge behind name */}
                     {u !== you && count > 0 && (
                       <span className="unread-badge">
-                        <UnreadLogo size={20} count={count} badgeColor="#ff3b30" onlyBadge={true} />
+                          <UnreadLogo size={20} count={count} onlyBadge={true} />
                       </span>
                     )}
                   </span>
@@ -465,7 +467,7 @@ function App() {
         <section className="section">
           <h4>Groups</h4>
           {groupRequestMsg && (
-            <div style={{ marginBottom: 8, color: '#3b3', fontSize: 13 }}>{groupRequestMsg}</div>
+            <div style={{ marginBottom: 8, color: 'var(--success)', fontSize: 13 }}>{groupRequestMsg}</div>
           )}
           <div className="group-form" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <input
@@ -498,12 +500,13 @@ function App() {
               const count = unread[room] || 0;
               return (
                 <li key={g.name} className="group-item">
+                  <Avatar name={g.name} size={36} />
                   <strong className="group-name-wrap">
                     {g.name}
                     {g.private ? ' 🔒' : ''}
-                    {isMember(g) && count > 0 && (
+                      {isMember(g) && count > 0 && (
                       <span className="group-unread-badge">
-                        <UnreadLogo size={20} count={count} badgeColor="#ff3b30" onlyBadge={true} />
+                        <UnreadLogo size={20} count={count} onlyBadge={true} />
                       </span>
                     )}
                   </strong>
@@ -537,7 +540,7 @@ function App() {
                     </button>
                   )}
                   {g.pending && g.pending.length > 0 && (
-                    <small style={{ marginLeft: 8, color: '#666' }}>
+                    <small style={{ marginLeft: 8, color: 'var(--muted)' }}>
                       {g.pending.length} pending
                     </small>
                   )}

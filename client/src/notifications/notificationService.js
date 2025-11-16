@@ -9,7 +9,11 @@ export function subscribe(fn) {
 export function notify(payload) {
   // payload: { title, body, room, type }
   for (const fn of Array.from(subscribers)) {
-    try { fn(payload); } catch (e) { console.error('notify subscriber failed', e); }
+    try {
+      fn(payload);
+    } catch (e) {
+      console.error('notify subscriber failed', e);
+    }
   }
 }
 

@@ -1,0 +1,47 @@
+/* Additional styles for inline world chat message formatting */
+.messages-container .message-line {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.messages-container .message-name {
+  font-weight: 700;
+  color: var(--ink);
+}
+.messages-container .message-time {
+  font-size: 12px;
+  color: var(--muted);
+}
+.messages-container .message-text {
+  color: var(--ink);
+}
+.messages-container .sep {
+  color: var(--muted);
+}
+
+/* Layout footer so input + button exactly fit the panel width */
+.world-inline-footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.world-inline-footer .input {
+  /* take remaining space, but allow shrinking to avoid overflow */
+  flex: 1 1 auto;
+  min-width: 0; /* important for flex children to truncate properly */
+  box-sizing: border-box;
+}
+
+.world-inline-footer .btn {
+  flex: 0 0 auto;
+}
+
+/* Ensure the inline panel body scrolls if content grows */
+.world-inline-panel .world-inline-body {
+  max-height: 220px;
+  overflow-y: auto;
+}

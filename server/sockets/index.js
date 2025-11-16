@@ -319,6 +319,10 @@ module.exports = function initSocketHandlers(io, opts = {}) {
           const s = presence.getSocket(m);
           if (s) s.leave(groupRoom(groupName));
         }
+        // notify all clients that the group was deleted so they can clear UI state
+        try {
+          io.emit('groups:deleted', groupName);
+        } catch (_) {}
         try {
           await emitGroupsUpdateAll();
         } catch (_) {}

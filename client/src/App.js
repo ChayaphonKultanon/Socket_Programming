@@ -522,14 +522,20 @@ function App() {
                 >
                   <Avatar name={g.name} size={36} />
                   <strong className="group-name-wrap">
-                    {g.name}
-                    {g.private ? ' 🔒' : ''}
+                      {g.name}
+                      {g.private ? ' 🔒' : ''}
+                      {/* Only show unread badge for members */}
                       {isMember(g) && count > 0 && (
-                      <span className="group-unread-badge">
-                        <UnreadLogo size={20} count={count} onlyBadge={true} />
-                      </span>
-                    )}
+                        <span className="group-unread-badge">
+                          <UnreadLogo size={20} count={count} onlyBadge={true} />
+                        </span>
+                      )}
+                      {/* Show pending requests inline after group name (not below) */}
+                      {g.pending && g.pending.length > 0 && (
+                        <span className="group-pending-note"> — {g.pending.length} pending request{g.pending.length > 1 ? 's' : ''}</span>
+                      )}
                   </strong>
+                    {/* Remove below-group pending note */}
                   {isMember(g) ? (
                     <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                       <button
@@ -559,11 +565,7 @@ function App() {
                       {g.private ? 'Request to join' : 'Join'}
                     </button>
                   )}
-                  {g.pending && g.pending.length > 0 && (
-                    <small style={{ marginLeft: 8, color: 'var(--muted)' }}>
-                      {g.pending.length} pending
-                    </small>
-                  )}
+                  {/* Remove duplicate/behind pending notification */}
                 </li>
               );
             })}

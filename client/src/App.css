@@ -611,6 +611,18 @@ h2 {
   margin-left: 6px;
 }
 
+/* Pending request note shown under a group name (owner-only) */
+.group-pending-note {
+  display: inline;
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+}
+
 /* Small world tab in sidebar */
 .world-tab-wrap {
   display: flex;

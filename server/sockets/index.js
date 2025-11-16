@@ -12,6 +12,40 @@ module.exports = function initSocketHandlers(io, opts = {}) {
 
   const listGroups = async () => await groups.listGroups();
 
+  // Return groups list tailored for a specific user. Only the group owner will
+  // see the `pending` requests for their group. Other users receive an empty
+  // pending array so join requests aren't exposed.
+  const listGroupsForUser = async (username) => {
+    const arr = await listGroups();
+    return arr.map((g) => ({
+      name: g.name,
+      members: g.members,
+      owner: g.owner,
+      private: !!g.private,
+      pending: g.owner === username ? (g.pending || []) : [],
+    }));
+  };
+
+  // Emit groups:update to every connected user with a tailored groups list
+  // so only owners see pending join requests.
+  const emitGroupsUpdateAll = async () => {
+    try {
+      const users = presence.listUsers();
+      for (const u of users) {
+        try {
+          const sock = presence.getSocket(u);
+          if (!sock) continue;
+          const gl = await listGroupsForUser(u);
+          sock.emit('groups:update', gl);
+        } catch (e) {
+          // ignore per-socket emit errors
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
   const dmRoom = (u1, u2) => `dm:${[u1, u2].sort().join('|')}`;
   const groupRoom = (g) => `group:${g}`;
 
@@ -50,7 +84,7 @@ module.exports = function initSocketHandlers(io, opts = {}) {
 
         io.emit('users:update', presence.listUsers());
         try {
-          const gl = await listGroups();
+          const gl = await listGroupsForUser(username);
           ack && ack({ ok: true, users: presence.listUsers(), groups: gl });
         } catch (err) {
           ack && ack({ ok: true, users: presence.listUsers(), groups: [] });
@@ -178,10 +212,9 @@ module.exports = function initSocketHandlers(io, opts = {}) {
         const g = await groups.createGroup(groupName, username, isPrivate);
         socket.join(groupRoom(groupName));
         try {
-          const gl = await listGroups();
-          io.emit('groups:update', gl);
+          await emitGroupsUpdateAll();
         } catch (_) {
-          io.emit('groups:update', []);
+          // best effort
         }
         ack &&
           ack({
@@ -203,11 +236,8 @@ module.exports = function initSocketHandlers(io, opts = {}) {
         await groups.joinPublic(groupName, username);
         socket.join(groupRoom(groupName));
         try {
-          const gl = await listGroups();
-          io.emit('groups:update', gl);
-        } catch (_) {
-          io.emit('groups:update', []);
-        }
+          await emitGroupsUpdateAll();
+        } catch (_) {}
         return (
           ack && ack({ ok: true, group: { name: g.name, members: Array.from(g.members || []) } })
         );
@@ -225,11 +255,8 @@ module.exports = function initSocketHandlers(io, opts = {}) {
         if (ownerSocket)
           ownerSocket.emit('groups:join:request', { groupName, requester: username });
         try {
-          const gl = await listGroups();
-          io.emit('groups:update', gl);
-        } catch (_) {
-          io.emit('groups:update', []);
-        }
+          await emitGroupsUpdateAll();
+        } catch (_) {}
         return ack && ack({ ok: true, pending: true });
       } catch (e) {
         return ack && ack({ ok: false, error: e.message });
@@ -248,11 +275,8 @@ module.exports = function initSocketHandlers(io, opts = {}) {
         const targetSocket = presence.getSocket(target);
         if (targetSocket) targetSocket.join(groupRoom(groupName));
         try {
-          const gl = await listGroups();
-          io.emit('groups:update', gl);
-        } catch (_) {
-          io.emit('groups:update', []);
-        }
+          await emitGroupsUpdateAll();
+        } catch (_) {}
         if (targetSocket) targetSocket.emit('groups:approved', { groupName });
         return ack && ack({ ok: true });
       } catch (e) {
@@ -272,11 +296,8 @@ module.exports = function initSocketHandlers(io, opts = {}) {
         const targetSocket = presence.getSocket(target);
         if (targetSocket) targetSocket.emit('groups:rejected', { groupName });
         try {
-          const gl = await listGroups();
-          io.emit('groups:update', gl);
-        } catch (_) {
-          io.emit('groups:update', []);
-        }
+          await emitGroupsUpdateAll();
+        } catch (_) {}
         return ack && ack({ ok: true });
       } catch (e) {
         return ack && ack({ ok: false, error: e.message });
@@ -299,11 +320,8 @@ module.exports = function initSocketHandlers(io, opts = {}) {
           if (s) s.leave(groupRoom(groupName));
         }
         try {
-          const gl = await listGroups();
-          io.emit('groups:update', gl);
-        } catch (_) {
-          io.emit('groups:update', []);
-        }
+          await emitGroupsUpdateAll();
+        } catch (_) {}
         return ack && ack({ ok: true });
       } catch (e) {
         return ack && ack({ ok: false, error: e.message });
@@ -412,7 +430,8 @@ module.exports = function initSocketHandlers(io, opts = {}) {
     socket.on('groups:list', async (ack) => {
       if (!ack) return;
       try {
-        const gl = await listGroups();
+        const username = presence.getUsername(socket.id);
+        const gl = username ? await listGroupsForUser(username) : await listGroups();
         ack({ ok: true, groups: gl });
       } catch (e) {
         ack({ ok: true, groups: [] });
@@ -430,11 +449,8 @@ module.exports = function initSocketHandlers(io, opts = {}) {
             .catch(() => {});
         io.emit('users:update', presence.listUsers());
         try {
-          const gl = await listGroups();
-          io.emit('groups:update', gl);
-        } catch (_) {
-          io.emit('groups:update', []);
-        }
+          await emitGroupsUpdateAll();
+        } catch (_) {}
         console.log(`User disconnected: ${username} (${socket.id})`);
       } else {
         console.log('Socket disconnected:', socket.id);

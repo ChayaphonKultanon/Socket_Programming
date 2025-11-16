@@ -7,6 +7,7 @@ import logo from './network_logo.jpg';
 import NotificationService from './notifications/notificationService';
 import Notifications from './components/Notifications';
 import UnreadLogo from './components/UnreadLogo';
+import Avatar from './components/Avatar';
 
 // If you need to override the server URL (different host/port), set REACT_APP_SERVER_URL in the client env.
 // const serverURL = process.env.REACT_APP_SERVER_URL || window.location.origin;
@@ -40,6 +41,8 @@ function App() {
   const [active, setActive] = useState(null); // { kind: 'dm'|'group', room, label, groupName? }
   // unread counts per room
   const [unread, setUnread] = useState({});
+  // Hovered group popup state: { name, x, y }
+  const [hoveredGroup, setHoveredGroup] = useState(null);
 
   const dmRoomId = (a, b) => {
     try {
@@ -433,6 +436,7 @@ function App() {
               const count = roomForU ? unread[roomForU] || 0 : 0;
               return (
                 <li key={u} className="user-item">
+                  <Avatar name={u} size={36} />
                   <span className="user-name-wrap">
                     <span>
                       {u}
@@ -441,7 +445,7 @@ function App() {
                     {/* unread badge behind name */}
                     {u !== you && count > 0 && (
                       <span className="unread-badge">
-                        <UnreadLogo size={20} count={count} badgeColor="#ff3b30" onlyBadge={true} />
+                          <UnreadLogo size={20} count={count} onlyBadge={true} />
                       </span>
                     )}
                   </span>
@@ -465,7 +469,7 @@ function App() {
         <section className="section">
           <h4>Groups</h4>
           {groupRequestMsg && (
-            <div style={{ marginBottom: 8, color: '#3b3', fontSize: 13 }}>{groupRequestMsg}</div>
+            <div style={{ marginBottom: 8, color: 'var(--success)', fontSize: 13 }}>{groupRequestMsg}</div>
           )}
           <div className="group-form" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <input
@@ -497,13 +501,32 @@ function App() {
               const room = `group:${g.name}`;
               const count = unread[room] || 0;
               return (
-                <li key={g.name} className="group-item">
+                <li
+                  key={g.name}
+                  className="group-item"
+                  onMouseEnter={(e) => {
+                    try {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setHoveredGroup({
+                        name: g.name,
+                        x: Math.min(rect.left, window.innerWidth - 240),
+                        y: rect.top + window.scrollY + rect.height + 4,
+                      });
+                    } catch (err) {
+                      /* ignore */
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredGroup((prev) => (prev && prev.name === g.name ? null : prev));
+                  }}
+                >
+                  <Avatar name={g.name} size={36} />
                   <strong className="group-name-wrap">
                     {g.name}
                     {g.private ? ' 🔒' : ''}
-                    {isMember(g) && count > 0 && (
+                      {isMember(g) && count > 0 && (
                       <span className="group-unread-badge">
-                        <UnreadLogo size={20} count={count} badgeColor="#ff3b30" onlyBadge={true} />
+                        <UnreadLogo size={20} count={count} onlyBadge={true} />
                       </span>
                     )}
                   </strong>
@@ -537,7 +560,7 @@ function App() {
                     </button>
                   )}
                   {g.pending && g.pending.length > 0 && (
-                    <small style={{ marginLeft: 8, color: '#666' }}>
+                    <small style={{ marginLeft: 8, color: 'var(--muted)' }}>
                       {g.pending.length} pending
                     </small>
                   )}
@@ -654,6 +677,67 @@ function App() {
           </div>
         </footer>
       </main>
+      {hoveredGroup && (
+        <div
+          className="group-members-popup"
+          style={{ top: hoveredGroup.y, left: hoveredGroup.x }}
+          onMouseLeave={() => setHoveredGroup(null)}
+        >
+          <div className="popup-title">Members: {hoveredGroup.name}</div>
+          <ul className="popup-members">
+            {(groups.find((gg) => gg.name === hoveredGroup.name)?.members || []).map((m) => (
+              <li key={m} className={m === you ? 'me' : ''}>{m}</li>
+            ))}
+          </ul>
+          {(() => {
+            const g = groups.find((x) => x.name === hoveredGroup.name);
+            if (g && g.pending && g.pending.length && g.owner === you) {
+              return (
+                <div className="popup-pending">
+                  <div className="popup-subtitle">Pending requests:</div>
+                  <ul>
+                    {g.pending.map((p) => (
+                      <li key={p}>
+                        <span>{p}</span>
+                        <button
+                          className="btn btn-small"
+                          onClick={() => {
+                            socketInstance.emit(
+                              'groups:approve',
+                              { groupName: g.name, username: p },
+                              (res) => {
+                                if (!res?.ok) setError(res?.error || 'Approve failed');
+                              }
+                            );
+                          }}
+                        >
+                          ✓
+                        </button>
+                        <button
+                          className="btn btn-small"
+                          onClick={() => {
+                            socketInstance.emit(
+                              'groups:reject',
+                              { groupName: g.name, username: p },
+                              (res) => {
+                                if (!res?.ok) setError(res?.error || 'Reject failed');
+                              }
+                            );
+                          }}
+                          style={{ marginLeft: 4 }}
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            }
+            return null;
+          })()}
+        </div>
+      )}
       {/* Notifications layer (bottom-left) */}
       <Notifications
         onOpen={(room, type) => {

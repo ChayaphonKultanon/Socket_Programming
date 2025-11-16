@@ -83,6 +83,25 @@ function App() {
       setUnread((prev) => ({ ...prev, ...byRoom }));
     };
 
+    const onGroupDeleted = (groupName) => {
+      try {
+        const roomId = `group:${groupName}`;
+        setMessagesByRoom((prev) => {
+          const next = { ...prev };
+          if (next[roomId]) delete next[roomId];
+          return next;
+        });
+        setUnread((prev) => {
+          const next = { ...prev };
+          if (next[roomId]) delete next[roomId];
+          return next;
+        });
+        setActive((prev) => (prev && prev.kind === 'group' && prev.groupName === groupName ? null : prev));
+      } catch (e) {
+        /* ignore */
+      }
+    };
+
     const onDmReady = (payload) => {
       // payload: { room, type: 'dm', with: [a,b] }
       // Ensure messages state exists
@@ -160,6 +179,7 @@ function App() {
     socketInstance.on('dm:ready', onDmReady);
     socketInstance.on('dm:message', onDmMessage);
     socketInstance.on('group:message', onGroupMessage);
+    socketInstance.on('groups:deleted', onGroupDeleted);
     socketInstance.on('history:load', onHistoryLoad);
     socketInstance.on('unread:update', onUnreadUpdate);
 
@@ -169,6 +189,7 @@ function App() {
       socketInstance.off('dm:ready', onDmReady);
       socketInstance.off('dm:message', onDmMessage);
       socketInstance.off('group:message', onGroupMessage);
+      socketInstance.off('groups:deleted', onGroupDeleted);
       socketInstance.off('groups:join:request', onJoinRequest);
       socketInstance.off('groups:approved', onApproved);
       socketInstance.off('groups:rejected', onRejected);

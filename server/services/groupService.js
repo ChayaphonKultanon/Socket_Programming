@@ -10,6 +10,12 @@ try {
 } catch (e) {
   /* not available */
 }
+let MessageModel = null;
+try {
+  MessageModel = require('../models/Message');
+} catch (e) {
+  /* may not exist */
+}
 
 // In-memory fallback
 const groups = new Map();
@@ -54,6 +60,16 @@ module.exports = {
     if (usingDb()) {
       const existing = await GroupModel.findOne({ name }).lean().exec();
       if (existing) throw new Error('Group already exists');
+      // Ensure any previously persisted messages for this group room are removed
+      // so creating a new group with the same name does not restore old history.
+      try {
+        if (MessageModel) {
+          await MessageModel.deleteMany({ room: `group:${name}` }).exec();
+        }
+      } catch (ee) {
+        // ignore message deletion errors
+        console.warn('Failed to clear old messages for group create', name, ee && ee.message);
+      }
       const created = await GroupModel.create({
         name,
         owner,
@@ -151,6 +167,16 @@ module.exports = {
     if (usingDb()) {
       const doc = await GroupModel.findOneAndDelete({ name }).lean().exec();
       if (!doc) throw new Error('Group not found');
+      // Also remove persisted messages for this group room so recreating a group
+      // with the same name doesn't restore previous history.
+      try {
+        if (MessageModel) {
+          await MessageModel.deleteMany({ room: `group:${name}` }).exec();
+        }
+      } catch (ee) {
+        // ignore message deletion errors to avoid breaking group delete
+        console.warn('Failed to delete messages for group', name, ee && ee.message);
+      }
       return normalizeDbGroupToInternal(doc);
     }
     const g = groups.get(name);

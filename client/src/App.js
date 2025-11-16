@@ -41,6 +41,8 @@ function App() {
   const [active, setActive] = useState(null); // { kind: 'dm'|'group', room, label, groupName? }
   // unread counts per room
   const [unread, setUnread] = useState({});
+  // Hovered group popup state: { name, x, y }
+  const [hoveredGroup, setHoveredGroup] = useState(null);
 
   const dmRoomId = (a, b) => {
     try {
@@ -499,7 +501,25 @@ function App() {
               const room = `group:${g.name}`;
               const count = unread[room] || 0;
               return (
-                <li key={g.name} className="group-item">
+                <li
+                  key={g.name}
+                  className="group-item"
+                  onMouseEnter={(e) => {
+                    try {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setHoveredGroup({
+                        name: g.name,
+                        x: Math.min(rect.left, window.innerWidth - 240),
+                        y: rect.top + window.scrollY + rect.height + 4,
+                      });
+                    } catch (err) {
+                      /* ignore */
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredGroup((prev) => (prev && prev.name === g.name ? null : prev));
+                  }}
+                >
                   <Avatar name={g.name} size={36} />
                   <strong className="group-name-wrap">
                     {g.name}
@@ -657,6 +677,67 @@ function App() {
           </div>
         </footer>
       </main>
+      {hoveredGroup && (
+        <div
+          className="group-members-popup"
+          style={{ top: hoveredGroup.y, left: hoveredGroup.x }}
+          onMouseLeave={() => setHoveredGroup(null)}
+        >
+          <div className="popup-title">Members: {hoveredGroup.name}</div>
+          <ul className="popup-members">
+            {(groups.find((gg) => gg.name === hoveredGroup.name)?.members || []).map((m) => (
+              <li key={m} className={m === you ? 'me' : ''}>{m}</li>
+            ))}
+          </ul>
+          {(() => {
+            const g = groups.find((x) => x.name === hoveredGroup.name);
+            if (g && g.pending && g.pending.length && g.owner === you) {
+              return (
+                <div className="popup-pending">
+                  <div className="popup-subtitle">Pending requests:</div>
+                  <ul>
+                    {g.pending.map((p) => (
+                      <li key={p}>
+                        <span>{p}</span>
+                        <button
+                          className="btn btn-small"
+                          onClick={() => {
+                            socketInstance.emit(
+                              'groups:approve',
+                              { groupName: g.name, username: p },
+                              (res) => {
+                                if (!res?.ok) setError(res?.error || 'Approve failed');
+                              }
+                            );
+                          }}
+                        >
+                          ✓
+                        </button>
+                        <button
+                          className="btn btn-small"
+                          onClick={() => {
+                            socketInstance.emit(
+                              'groups:reject',
+                              { groupName: g.name, username: p },
+                              (res) => {
+                                if (!res?.ok) setError(res?.error || 'Reject failed');
+                              }
+                            );
+                          }}
+                          style={{ marginLeft: 4 }}
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            }
+            return null;
+          })()}
+        </div>
+      )}
       {/* Notifications layer (bottom-left) */}
       <Notifications
         onOpen={(room, type) => {
